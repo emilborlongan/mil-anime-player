@@ -9,12 +9,14 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@consumet/extensions": "^1.8.1",
     "axios": "^1.7.7",
     "hls.js": "^1.5.17",
     "next": "15.0.3",
     "plyr": "^3.7.8",
     "react": "19.0.0-rc-66855b96-20241106",
-    "react-dom": "19.0.0-rc-66855b96-20241106"
+    "react-dom": "19.0.0-rc-66855b96-20241106",
+    "swr": "^2.2.5"
   },
   "devDependencies": {
     "@types/node": "^20",

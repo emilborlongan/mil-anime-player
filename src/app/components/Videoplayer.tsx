@@ -1,56 +1,84 @@
-import React, { useEffect, useState } from 'react';
-import Plyr from 'plyr';  // Assuming you're using Plyr for video player
+'use client';
+
+import dynamic from 'next/dynamic';
+//import useSWR from 'swr';
+import React, { useEffect, useState, useRef } from 'react';
+import Plyr from 'plyr';
+import 'plyr/dist/plyr.css';
+import Hls from 'hls.js';
 
 type VideoPlayerProps = {
-    episodeId: string;
+    videoUrl: string;
 };
 
-const VideoPlayer: React.FC<VideoPlayerProps> = ({ episodeId }) => {
-    const [videoUrl, setVideoUrl] = useState<string | null>(null);
+const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
-    // Fetch the video stream URL from the proxy route
+const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoUrl }) => {
+    const proxyUrl = `/api/proxy?url=${encodeURIComponent(videoUrl)}`;
+    //const proxyUrl = `/api/proxy?url=${videoUrl}`;
+
+    const videoRef = useRef<HTMLVideoElement | null>(null);
+
+    // Use SWR to prefetch metadata or validate the video URL
+    /* const { data, error } = useSWR(proxyUrl, fetcher);
+
+    if (error) return <p>Error loading video metadata</p>;
+    if (!data) return <p>Loading video...</p>; */
+
     useEffect(() => {
-        const fetchVideo = async () => {
-            try {
-                const response = await fetch(`/api/proxy?animeId=${episodeId}`);
-                const data = await response.json();
+        const video = videoRef.current;
 
-                if (data.sources && data.sources.length > 0) {
-                    // Assuming `data.sources[0].url` holds the HLS URL
-                    setVideoUrl(data.sources[0].url);
-                } else {
-                    console.error('No video sources available');
-                }
-            } catch (error) {
-                console.error('Error fetching video data:', error);
+        if (video) {
+            if (Hls.isSupported()) {
+                const hls = new Hls();
+
+                hls.loadSource(proxyUrl);
+                hls.attachMedia(video);
+
+                hls.on(Hls.Events.MANIFEST_PARSED, () => {
+                    new Plyr(video, { autoplay: false });
+                });
+
+                // Cleanup HLS instance
+                return () => {
+                    hls.destroy();
+                };
+            } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                // Native HLS support (e.g., Safari)
+                video.src = proxyUrl;
+                new Plyr(video, { autoplay: false });
+            } else {
+                console.error('HLS is not supported in this browser.');
             }
-        };
-
-        fetchVideo();
-    }, [episodeId]);
+        }
+    }, [videoUrl]);    
 
     return (
         <div>
-            {videoUrl ? (
-                <video
-                    controls
-                    autoPlay
-                    ref={(el) => {
-                        if (el) {
-                            new Plyr(el, {
-                                autoplay: true
-                            });
-                        }
-                    }}
-                >
-                    <source src={videoUrl} type="application/x-mpegURL" />
-                    Your browser does not support the video tag.
-                </video>
-            ) : (
-                <p>Loading...</p>
-            )}
+            <video
+                ref={videoRef}
+                controls
+                style={{ width: '100%' }}
+                playsInline
+            />
         </div>
     );
+
+   /*  const videoRef = useRef<HTMLVideoElement>(null);
+
+    useEffect(() => {
+        if (Hls.isSupported() && videoRef.current) {
+            const hls = new Hls();
+            hls.loadSource(proxyUrl); // Use your proxy URL here
+            hls.attachMedia(videoRef.current);
+
+            hls.on(Hls.Events.ERROR, (event, data) => {
+                console.error('HLS.js Error:', data);
+            });
+        }
+    }, [proxyUrl]);
+
+    return <video ref={videoRef} controls style={{ width: '100%' }}></video>; */
 };
 
 export default VideoPlayer;

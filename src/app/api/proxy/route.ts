@@ -1,44 +1,36 @@
-// app/api/proxy/route.ts
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import axios from 'axios';
 
-export async function GET(req: Request) {
+export async function GET(req: NextRequest) {
+    const url = req.nextUrl.searchParams.get('url');
 
-    console.log('foo');
-
-    const { searchParams } = new URL(req.url);
-    const episodeId = searchParams.get('episodeId');
-
-    console.log('bar');
-
-    if (!episodeId) {
-        return NextResponse.json(
-            { error: 'Missing animeId or episode parameter' },
-            { status: 400 }
-        );
+    if (!url) {
+        return NextResponse.json({ error: 'Missing URL parameter' }, { status: 400 });
     }
 
-    console.log('bear');
-
-    const apiUrl = `https://consumet-api-blond-iota.vercel.app/anime/zoro/watch/${episodeId}?server=vidcloudv`;
-
     try {
-        // Fetch data from the Consumet API
-        const response = await fetch(apiUrl);
-        const data = await response.json();
+        // Fetch the `.m3u8` file
+        const response = await axios.get(url, { responseType: 'text' }); // Get the file as plain text
+        let content = response.data;
 
-        // Return the data with CORS headers
-        return NextResponse.json(data, {
+        // Rewrite relative paths in the `.m3u8` file to absolute URLs
+        const baseUrl = new URL(url).origin;
+        content = content.replace(/^(?!http|#)(.*)$/gm, (line: any) => `${baseUrl}/${line}`);
+
+        console.log({content})
+
+        return new NextResponse(content, {
             headers: {
+                'Content-Type': 'application/vnd.apple.mpegurl',
                 'Access-Control-Allow-Origin': '*',
-                'Access-Control-Allow-Methods': 'GET',
-                'Access-Control-Allow-Headers': 'Content-Type',
             },
         });
-    } catch (error) {
-        console.error('Error fetching API:', error);
-        return NextResponse.json(
-            { error: 'Failed to fetch data from Consumet API' },
-            { status: 500 }
-        );
+    } catch (error: any) {
+        console.error('Error fetching proxied URL:', error);
+
+        const status = error.response?.status || 500;
+        const message = error.response?.data || 'Failed to fetch the requested URL';
+
+        return NextResponse.json({ error: message }, { status });
     }
 }
